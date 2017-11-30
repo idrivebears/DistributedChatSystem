@@ -14,7 +14,7 @@ var clientTwitter = new Twitter({
   access_token_key: '237858263-EnKXgFdnnNOAcLxXZ2uzyO9ieqqG9PL8lH0ZND1h',
   access_token_secret: 'XaOavIX45M4FChJsCpMVmbBnDvvxdmh2mNoJ31oAD0E9N'
 });
-
+const LOCALADDRESS = "127.0.0.1"
 const SENDALIVETIMEOUT = 30000
 const RECEIVEALIVETIMEOIT = 3000
 var coordinatorAdd
@@ -26,9 +26,34 @@ var peer = []
 var blocked = []
 var isCoordinatorAlive = true
 coordinator.on('error', (err) => {
-  console.log(`coordinator error:\n${err.stack}`);
+  //console.log(`coordinator error:\n${err.stack}`);
   coordinator.close();
+  assignCoordinator = false
 });
+var os = require('os');
+var ifaces = os.networkInterfaces();
+var add
+Object.keys(ifaces).forEach(function (ifname) {
+  var alias = 0;
+
+  ifaces[ifname].forEach(function (iface) {
+    if ('IPv4' !== iface.family || iface.internal !== false) {
+      // skip over internal (i.e. 127.0.0.1) and non-ipv4 addresses
+      return;
+    }
+
+    if (alias >= 1) {
+      // this single interface has multiple ipv4 addresses
+      //console.log(ifname + ':' + alias, iface.address);
+    } else {
+      // this interface has only one ipv4 adress
+      //console.log(ifname, iface.address);
+      thisAddress = iface.address
+    }
+    ++alias;
+  });
+});
+
 
 coordinator.on('message', (msg, rinfo) => {
   //console.log(`coordinator got: ${msg} from ${rinfo.address}:${rinfo.port}`);
@@ -175,7 +200,7 @@ client.on('listening', () => {
   if(!broadcastBool) {
     //console.log("send broadcast Message")
     
-    client.send(message, 0, message.length, 41234,"127.0.0.1", function(err, bytes) {
+    client.send(message, 0, message.length, 41234,thisAddress, function(err, bytes) {
       broadcastBool = true
       //client.close();
     });
@@ -212,7 +237,7 @@ function sendCoordinatorAlive(){
 function receiveCoordinatorAlive(){
   if(!isCoordinatorAlive){
     ////choose new coordinator
-    coordinator.bind({address:'localhost', port:41234});
+    coordinator.bind({address:thisAddress, port:41234});
     var json = JSON.stringify(peer)
     //console.log("receiveCoordAlive newCoord b " + json)
     peer.forEach(function(element){
@@ -237,35 +262,13 @@ function receiveCoordinatorAlive(){
 function checkCoordinator(){
   //console.log("checkCoordinator " + assignCoordinator)
   if(assignCoordinator){
-    coordinator.bind({address:'localhost', port:41234});
+    coordinator.bind({address:thisAddress, port:41234});
   }
   setTimeout(startClient, 1000)
 }
 function startClient(){
   
-  var os = require('os');
-  var ifaces = os.networkInterfaces();
-  var add
-  Object.keys(ifaces).forEach(function (ifname) {
-    var alias = 0;
   
-    ifaces[ifname].forEach(function (iface) {
-      if ('IPv4' !== iface.family || iface.internal !== false) {
-        // skip over internal (i.e. 127.0.0.1) and non-ipv4 addresses
-        return;
-      }
-  
-      if (alias >= 1) {
-        // this single interface has multiple ipv4 addresses
-        //console.log(ifname + ':' + alias, iface.address);
-      } else {
-        // this interface has only one ipv4 adress
-        //console.log(ifname, iface.address);
-        add = iface.address
-      }
-      ++alias;
-    });
-  });
 
   var rl = readline.createInterface(process.stdin, process.stdout);
   var init = true;
@@ -274,7 +277,7 @@ function startClient(){
       if(init == true) {
         
         const address = client.address()
-        //var add = address.address
+        var add = thisAddress
         var port = address.port
         //console.log("PORT PORT " + port)
         var coord = assignCoordinator
